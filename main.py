@@ -17,6 +17,7 @@ def run_web():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
+# Start Flask in a background thread
 threading.Thread(target=run_web, daemon=True).start()
 
 # 2. Discord Bot Setup
@@ -27,17 +28,18 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    # Sync slash commands with Discord
+    # Sync slash commands globally across Discord
     await bot.tree.sync()
     print(f"Bot is logged in as {bot.user}")
 
-# 3. Slash Command with Defer (Prevents Timeout Error)
-@bot.tree.command(name="generate", description="Generate an image from prompt")
+# 3. Slash Command with Defer (Fixes "Application did not respond")
+@bot.tree.command(name="generate", description="Generate an image using A Dark Corner Generator")
 async def generate(interaction: discord.Interaction, prompt: str):
-    # Buys up to 15 minutes by telling Discord "Thinking..."
+    # Tells Discord "Bot is thinking..." immediately (prevents 3-second timeout)
     await interaction.response.defer()
 
     url = "https://image-generation-perchance.hf.space/api/predict"
+    
     payload = {
         "data": [
             prompt,
@@ -57,7 +59,7 @@ async def generate(interaction: discord.Interaction, prompt: str):
                     embed = discord.Embed(title="A Dark Corner Image", description=f"**Prompt:** {prompt}")
                     embed.set_image(url=image_url)
                     
-                    # Use followup to send the result after deferring
+                    # Send result after deferring using followup
                     await interaction.followup.send(embed=embed)
                 else:
                     await interaction.followup.send("⚠️ Failed to generate image from Perchance. Please try again.")
