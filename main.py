@@ -1,8 +1,11 @@
-from flask import Flask
-import threading
 import os
+import threading
+import aiohttp
+import discord
+from discord.ext import commands
+from flask import Flask
 
-# Fake web server to satisfy Render's port check
+# 1. Fake web server to satisfy Render's port check
 app = Flask(__name__)
 
 @app.route('/')
@@ -13,11 +16,10 @@ def run_web():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-threading.Thread(target=run_web, daemon=True).start()import os
-import aiohttp
-import discord
-from discord.ext import commands
+# Start Flask in a background thread
+threading.Thread(target=run_web, daemon=True).start()
 
+# 2. Discord Bot Setup
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -32,7 +34,7 @@ async def generate(ctx, *, prompt: str):
     await ctx.send(f"🎨 Generating image for prompt: **{prompt}**...")
 
     # Perchance API Endpoint for A Dark Corner Generator
-    url = f"https://image-generation-perchance.hf.space/api/predict"
+    url = "https://image-generation-perchance.hf.space/api/predict"
     
     payload = {
         "data": [
