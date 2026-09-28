@@ -1,0 +1,10 @@
+{
+  "name": "darkcorner-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord slash-command bot: /generate posts an AI image back to the channel",
+  "main": "index.js",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "discord.js": "^14.16.3"
+  }
+}
