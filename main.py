@@ -1,12 +1,13 @@
 import os
 import threading
+import random
 import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
 from flask import Flask
 
-# Your Discord Server ID added here:
+# Your Discord Server ID
 GUILD_ID = 1461507856023945230  
 
 # 1. Background web server for Render port scan
@@ -38,34 +39,61 @@ async def on_ready():
 # 3. Slash Command with Defer
 @bot.tree.command(name="generate", description="Generate an image using A Dark Corner Generator")
 async def generate(interaction: discord.Interaction, prompt: str):
-    # Prevents 3-second timeout by deferring response
+    # Defer response to allow time for image generation without timing out
     await interaction.response.defer()
 
-    url = "https://image-generation-perchance.hf.space/api/predict"
+    # Perchance / Hugging Face Gradio Endpoint
+    url = "https://image-generation-perchance.hf.space/run/predict"
     
+    # Generate a numeric seed for API compatibility
+    seed_val = random.randint(1, 999999999)
+
     payload = {
         "data": [
             prompt,
-            "",       # negative prompt
-            "random", # seed
-            7.5,      # guidance scale
+            "ugly, distorted, low quality, bad anatomy", # negative prompt
+            seed_val,                                    # numeric seed
+            7.5                                          # guidance scale
         ]
     }
 
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload) as response:
+        # Increased timeout to 90 seconds for heavy generation tasks
+        timeout = aiohttp.ClientTimeout(total=90)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(url, json=payload, headers=headers) as response:
+                print(f"API Response Status: {response.status}")
                 if response.status == 200:
                     result = await response.json()
-                    image_url = result["data"][0]
                     
-                    embed = discord.Embed(title="A Dark Corner Image", description=f"**Prompt:** {prompt}")
-                    embed.set_image(url=image_url)
-                    
-                    await interaction.followup.send(embed=embed)
+                    # Gradio returns data as a list of outputs
+                    if "data" in result and len(result["data"]) > 0:
+                        image_data = result["data"][0]
+                        
+                        # Handle array/object response format from Gradio
+                        if isinstance(image_data, list):
+                            image_url = image_data[0]
+                        elif isinstance(image_data, dict):
+                            image_url = image_data.get("url") or image_data.get("name")
+                        else:
+                            image_url = image_data
+
+                        embed = discord.Embed(title="A Dark Corner Image", description=f"**Prompt:** {prompt}")
+                        embed.set_image(url=image_url)
+                        await interaction.followup.send(embed=embed)
+                    else:
+                        await interaction.followup.send("⚠️ API responded, but no image data was returned.")
                 else:
-                    await interaction.followup.send("⚠️ Failed to generate image from Perchance. Please try again.")
+                    error_text = await response.text()
+                    print(f"Error output: {error_text}")
+                    await interaction.followup.send(f"⚠️ Failed to generate image (Status Code `{response.status}`). Please try again.")
     except Exception as e:
-        await interaction.followup.send(f"An error occurred: {e}")
+        print(f"Exception during generation: {e}")
+        await interaction.followup.send(f"An error occurred: `{e}`")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
