@@ -6,6 +6,9 @@ from discord import app_commands
 from discord.ext import commands
 from flask import Flask
 
+# Your Discord Server ID added here:
+GUILD_ID = 1461507856023945230  
+
 # 1. Background web server for Render port scan
 app = Flask(__name__)
 
@@ -17,7 +20,6 @@ def run_web():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# Start Flask in a background thread
 threading.Thread(target=run_web, daemon=True).start()
 
 # 2. Discord Bot Setup
@@ -28,14 +30,15 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    # Sync slash commands globally across Discord
-    await bot.tree.sync()
-    print(f"Bot is logged in as {bot.user}")
+    guild = discord.Object(id=GUILD_ID)
+    bot.tree.copy_global_to(guild=guild)
+    await bot.tree.sync(guild=guild)
+    print(f"Bot logged in as {bot.user} and synced commands instantly to guild {GUILD_ID}!")
 
-# 3. Slash Command with Defer (Fixes "Application did not respond")
+# 3. Slash Command with Defer
 @bot.tree.command(name="generate", description="Generate an image using A Dark Corner Generator")
 async def generate(interaction: discord.Interaction, prompt: str):
-    # Tells Discord "Bot is thinking..." immediately (prevents 3-second timeout)
+    # Prevents 3-second timeout by deferring response
     await interaction.response.defer()
 
     url = "https://image-generation-perchance.hf.space/api/predict"
@@ -59,7 +62,6 @@ async def generate(interaction: discord.Interaction, prompt: str):
                     embed = discord.Embed(title="A Dark Corner Image", description=f"**Prompt:** {prompt}")
                     embed.set_image(url=image_url)
                     
-                    # Send result after deferring using followup
                     await interaction.followup.send(embed=embed)
                 else:
                     await interaction.followup.send("⚠️ Failed to generate image from Perchance. Please try again.")
