@@ -2,10 +2,11 @@ import os
 import threading
 import aiohttp
 import discord
+from discord import app_commands
 from discord.ext import commands
 from flask import Flask
 
-# 1. Fake web server to satisfy Render's port check
+# 1. Background web server for Render port scan
 app = Flask(__name__)
 
 @app.route('/')
@@ -16,7 +17,6 @@ def run_web():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# Start Flask in a background thread
 threading.Thread(target=run_web, daemon=True).start()
 
 # 2. Discord Bot Setup
@@ -27,15 +27,17 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
+    # Sync slash commands with Discord
+    await bot.tree.sync()
     print(f"Bot is logged in as {bot.user}")
 
-@bot.command(name="generate")
-async def generate(ctx, *, prompt: str):
-    await ctx.send(f"🎨 Generating image for prompt: **{prompt}**...")
+# 3. Slash Command with Defer (Prevents Timeout Error)
+@bot.tree.command(name="generate", description="Generate an image from prompt")
+async def generate(interaction: discord.Interaction, prompt: str):
+    # Buys up to 15 minutes by telling Discord "Thinking..."
+    await interaction.response.defer()
 
-    # Perchance API Endpoint for A Dark Corner Generator
     url = "https://image-generation-perchance.hf.space/api/predict"
-    
     payload = {
         "data": [
             prompt,
@@ -54,10 +56,12 @@ async def generate(ctx, *, prompt: str):
                     
                     embed = discord.Embed(title="A Dark Corner Image", description=f"**Prompt:** {prompt}")
                     embed.set_image(url=image_url)
-                    await ctx.send(embed=embed)
+                    
+                    # Use followup to send the result after deferring
+                    await interaction.followup.send(embed=embed)
                 else:
-                    await ctx.send("⚠️ Failed to generate image from Perchance. Please try again.")
+                    await interaction.followup.send("⚠️ Failed to generate image from Perchance. Please try again.")
     except Exception as e:
-        await ctx.send(f"An error occurred: {e}")
+        await interaction.followup.send(f"An error occurred: {e}")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
