@@ -1,4 +1,19 @@
+from flask import Flask
+import threading
 import os
+
+# Fake web server to satisfy Render's port check
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Discord bot is online!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+threading.Thread(target=run_web, daemon=True).start()import os
 import aiohttp
 import discord
 from discord.ext import commands
